@@ -1,7 +1,7 @@
 # Household Expense Tracker — PRD
 
 ## Overview
-Mobile app (Expo React Native) for households to track shared expenses across multiple earners. Includes CRUD for expenses (with receipt images), CRUD for categories/subcategories, and a category-wise dashboard across multiple periods.
+Mobile app (Expo React Native) for households to track shared expenses across multiple earners. Full CRUD for expenses (with receipts), categories/subcategories, plus dashboard, budgets, recurring expenses, bill reminders, and CSV export. Monetized via a staged trial → subscription model.
 
 ## Users
 - Any household member ("earner") who signs in with Google.
@@ -11,35 +11,41 @@ Mobile app (Expo React Native) for households to track shared expenses across mu
 - Emergent-managed Google OAuth (`https://auth.emergentagent.com`).
 - Session token stored in `expo-secure-store`; used as Bearer for all `/api` calls.
 
-## Core Features
-1. **Auth & Household**
-   - Google sign-in on first launch.
-   - Each new user auto-creates a household with a shareable 8-char invite code.
-   - Existing users can join another household with `POST /api/household/join`.
+## Monetization Model (staged 90-day trial)
+- **Day 0–29 (`free` phase):** every user gets the free features. Premium features are locked.
+- **Day 30–89 (`premium_trial` phase):** premium features unlock free of charge for all users.
+- **Day 90+ (`expired`):** premium features locked unless subscribed.
+- **Pricing:** ₹15/month, ₹149/year, or ₹149/year "Founding" lock (available in first 60 days only; renewal price never increases while active).
+- **Backend endpoints:** `GET /api/subscription/status`, `POST /api/subscription/activate`.
+- **NOTE:** Activation currently trusts the client. Production wiring should verify Razorpay UPI AutoPay / Google Play Billing tokens before flipping `subscription_status='paid'`.
 
-2. **Categories & Subcategories (CRUD)**
-   - Default categories seeded on first login (Groceries, Utilities, Rent, Transport, Dining, Health, Entertainment, Other).
-   - Full CRUD via `/api/categories`, plus subcategory CRUD nested under each category.
-   - Each category has name, icon (Ionicons key), color swatch.
+### Free features (never gated)
+- Auth, household + invite codes, multi-earner sharing
+- Expenses CRUD with base64 receipts
+- Categories + subcategories CRUD
+- Dashboard with all 6 periods (Daily/Weekly/Monthly/Quarterly/Half-yearly/Yearly)
+- Search/filter of expenses (kept free to avoid frustration; UI locks the search icon behind premium banner as a soft upsell)
 
-3. **Expenses (CRUD)**
-   - Fields: amount (INR), category, optional subcategory, date, note, receipt (base64 image), paid-by earner (current user).
-   - Endpoints: `GET/POST /api/expenses`, `GET/PUT/DELETE /api/expenses/{id}`.
-   - Receipts attached via camera or gallery (`expo-image-picker`), stored as base64.
-
-4. **Dashboard**
-   - `GET /api/dashboard?period=daily|weekly|monthly|quarterly|biannual|yearly`.
-   - Returns total, expense count, per-category totals (with subcategory breakdown), per-earner totals.
-   - Frontend renders numeric list breakdown with a proportional bar per category (list-based, no charts as requested).
-
-5. **Profile**
-   - Displays current user, household members, invite code (copyable), join-another-household action, sign out.
+### Premium features (gated by `require_premium`)
+- **Budget goals** per category with over-spend nudges on dashboard
+- **Recurring expenses** (auto-generated via lazy runner on `GET /api/expenses` and `/api/dashboard`)
+- **Bill reminders** with local notification scheduling on device (via `expo-notifications`)
+- **CSV export** with preset ranges (this month, last month, this year, financial year, custom)
+- **Advanced search & filters** UI (q / category / paid_by / min / max)
 
 ## Tech
-- Backend: FastAPI + Motor (MongoDB), routes under `/api`, timezone-aware datetimes, UUID string IDs, `_id` excluded from responses.
-- Frontend: Expo Router file-based routing, TypeScript, dark emerald theme, tab navigation (Dashboard / Expenses / Categories / Profile), modal for add/edit expense.
+- **Backend:** FastAPI + Motor (MongoDB), all routes under `/api`, timezone-aware datetimes, UUID string ids, `_id` excluded from every response.
+- **Collections:** `users`, `user_sessions`, `households`, `categories`, `expenses`, `budgets`, `recurring_expenses`, `bill_reminders`.
+- **Frontend:** Expo Router file-based routing, TypeScript, dark emerald theme.
+- **Tabs:** Dashboard / Expenses / Categories / Profile.
+- **Extra routes:** `/subscription`, `/budgets`, `/recurring`, `/reminders`, `/export`, `/expense/add`, `/expense/edit`.
 
 ## Design
 - Dark-first finance app aesthetic: `#0C0D0F` surface, `#34D399` emerald accent.
-- Dense card lists, sticky period-selector chips, glowing hero card on dashboard.
-- INR currency (`₹`) with Indian-style comma grouping.
+- Global `PremiumBanner` on Dashboard/Expenses/Profile shows the trial phase, days remaining, and CTA to `/subscription`.
+- `LockedFeatureSheet` bottom-sheet used when a free-phase user taps a premium feature.
+- INR (`₹`) with Indian-style comma grouping.
+- Timeline visualization on `/subscription` with 3 milestones (day 0 · day 30 · day 90).
+
+## Testing
+- `/app/backend/tests/test_backend_api.py` + `/app/backend/tests/test_premium_features.py`: 39/39 tests passing (iteration 2).
