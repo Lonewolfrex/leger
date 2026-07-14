@@ -10,13 +10,16 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 
 import { api, DashboardData } from "@/src/api";
 import { theme } from "@/src/theme";
 import { formatINR } from "@/src/utils/currency";
 import { showToast } from "@/src/components/Toast";
 import { useAuth } from "@/src/context/AuthContext";
+import { useSubscription } from "@/src/context/SubscriptionContext";
+import PremiumBanner from "@/src/components/PremiumBanner";
+import LockedFeatureSheet from "@/src/components/LockedFeatureSheet";
 
 const PERIODS: { key: string; label: string }[] = [
   { key: "daily", label: "Daily" },
@@ -29,11 +32,14 @@ const PERIODS: { key: string; label: string }[] = [
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { isPremiumActive } = useSubscription();
+  const router = useRouter();
   const [period, setPeriod] = useState("monthly");
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [lockedOpen, setLockedOpen] = useState(false);
 
   const load = useCallback(async (p: string, isRefresh = false) => {
     if (!isRefresh) setLoading(true);
@@ -65,6 +71,15 @@ export default function Dashboard() {
 
   const total = data?.total ?? 0;
   const count = data?.expense_count ?? 0;
+  const budgets = data?.budgets ?? [];
+
+  const openBudgets = () => {
+    if (!isPremiumActive) {
+      setLockedOpen(true);
+      return;
+    }
+    router.push("/budgets");
+  };
 
   return (
     <SafeAreaView edges={["top"]} style={styles.safe} testID="dashboard-screen">
@@ -74,6 +89,8 @@ export default function Dashboard() {
           <Text style={styles.title}>Household ledger</Text>
         </View>
       </View>
+
+      <PremiumBanner />
 
       <View style={styles.chipRow}>
         <ScrollView
@@ -101,13 +118,7 @@ export default function Dashboard() {
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={theme.colors.brand}
-          />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.brand} />}
       >
         <View style={styles.heroCard} testID="dashboard-hero">
           <Text style={styles.heroLabel}>Total spent</Text>
@@ -137,7 +148,58 @@ export default function Dashboard() {
           )}
         </View>
 
-        <SectionHeader title="By category" />
+        {period === "monthly" && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Monthly budgets</Text>
+              <TouchableOpacity testID="manage-budgets-link" onPress={openBudgets} style={styles.linkBtn}>
+                <Text style={styles.linkText}>{budgets.length ? "Manage" : "Set up"}</Text>
+                {!isPremiumActive && <Ionicons name="lock-closed" size={11} color={theme.colors.warn} />}
+              </TouchableOpacity>
+            </View>
+            {budgets.length === 0 ? (
+              <View style={styles.budgetEmpty} testID="budgets-empty">
+                <Ionicons name="bar-chart-outline" size={20} color={theme.colors.textDim} />
+                <Text style={styles.budgetEmptyText}>
+                  Set a monthly limit per category — get over-spend nudges here.
+                </Text>
+              </View>
+            ) : (
+              budgets.map((b) => {
+                const pct = Math.min(100, b.percent);
+                const over = b.percent >= 100;
+                const near = b.percent >= 80 && !over;
+                const barColor = over ? theme.colors.error : near ? theme.colors.warn : b.category_color;
+                return (
+                  <View key={b.id} style={styles.budgetCard} testID={`budget-progress-${b.category_id}`}>
+                    <View style={styles.budgetHeader}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.budgetName}>{b.category_name}</Text>
+                        <Text style={styles.budgetMeta}>
+                          {formatINR(b.spent)} of {formatINR(b.amount)}
+                        </Text>
+                      </View>
+                      <Text style={[styles.budgetPct, { color: barColor }]}>{Math.round(b.percent)}%</Text>
+                    </View>
+                    <View style={styles.barTrack}>
+                      <View style={[styles.barFill, { width: `${pct}%`, backgroundColor: barColor }]} />
+                    </View>
+                    {over && (
+                      <Text style={styles.overText}>
+                        <Ionicons name="warning" size={12} color={theme.colors.error} /> Over by{" "}
+                        {formatINR(b.spent - b.amount)}
+                      </Text>
+                    )}
+                  </View>
+                );
+              })
+            )}
+          </>
+        )}
+
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>By category</Text>
+        </View>
         {loading && !data ? (
           <ActivityIndicator color={theme.colors.brand} style={{ marginTop: 24 }} />
         ) : (data?.by_category.length ?? 0) === 0 ? (
@@ -149,9 +211,7 @@ export default function Dashboard() {
             return (
               <View key={c.category_id} style={styles.catCard} testID={`dashboard-cat-${c.category_id}`}>
                 <TouchableOpacity
-                  onPress={() =>
-                    setExpanded((e) => ({ ...e, [c.category_id]: !e[c.category_id] }))
-                  }
+                  onPress={() => setExpanded((e) => ({ ...e, [c.category_id]: !e[c.category_id] }))}
                   activeOpacity={0.7}
                   style={styles.catRow}
                 >
@@ -191,7 +251,9 @@ export default function Dashboard() {
 
         {data && data.by_earner.length > 0 && (
           <>
-            <SectionHeader title="By earner" />
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>By earner</Text>
+            </View>
             {data.by_earner.map((e) => (
               <View key={e.user_id} style={styles.earnerRow} testID={`dashboard-earner-${e.user_id}`}>
                 <View style={styles.avatar}>
@@ -211,15 +273,13 @@ export default function Dashboard() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
-    </SafeAreaView>
-  );
-}
 
-function SectionHeader({ title }: { title: string }) {
-  return (
-    <View style={styles.sectionHeader}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-    </View>
+      <LockedFeatureSheet
+        visible={lockedOpen}
+        featureName="Budget goals"
+        onClose={() => setLockedOpen(false)}
+      />
+    </SafeAreaView>
   );
 }
 
@@ -253,25 +313,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 12,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
   },
   hi: { color: theme.colors.textMuted, fontSize: 13 },
-  title: {
-    color: theme.colors.text,
-    fontSize: 26,
-    fontWeight: "800",
-    letterSpacing: -0.5,
-    marginTop: 2,
-  },
+  title: { color: theme.colors.text, fontSize: 26, fontWeight: "800", letterSpacing: -0.5, marginTop: 2 },
   chipRow: { height: 56 },
-  chipRowContent: {
-    paddingHorizontal: 16,
-    gap: 8,
-    alignItems: "center",
-    height: 56,
-  },
+  chipRowContent: { paddingHorizontal: 16, gap: 8, alignItems: "center", height: 56 },
   chip: {
     height: 36,
     paddingHorizontal: 14,
@@ -283,18 +329,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     flexShrink: 0,
   },
-  chipActive: {
-    borderColor: theme.colors.brand,
-    backgroundColor: theme.colors.brandDim,
-  },
-  chipText: {
-    color: theme.colors.textMuted,
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  chipTextActive: {
-    color: theme.colors.brand,
-  },
+  chipActive: { borderColor: theme.colors.brand, backgroundColor: theme.colors.brandDim },
+  chipText: { color: theme.colors.textMuted, fontSize: 13, fontWeight: "600" },
+  chipTextActive: { color: theme.colors.brand },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 20, paddingTop: 8 },
   heroCard: {
@@ -304,55 +341,49 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
-  heroLabel: {
-    color: theme.colors.textMuted,
-    fontSize: 12,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  heroAmount: {
-    color: theme.colors.text,
-    fontSize: 40,
-    fontWeight: "800",
-    letterSpacing: -1,
-    marginTop: 6,
-  },
-  heroMetaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 16,
-  },
+  heroLabel: { color: theme.colors.textMuted, fontSize: 12, textTransform: "uppercase", letterSpacing: 1 },
+  heroAmount: { color: theme.colors.text, fontSize: 40, fontWeight: "800", letterSpacing: -1, marginTop: 6 },
+  heroMetaRow: { flexDirection: "row", alignItems: "center", marginTop: 16 },
   heroMeta: { flex: 1 },
-  heroMetaDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: theme.colors.border,
-    marginHorizontal: 12,
-  },
-  heroMetaK: {
-    color: theme.colors.brand,
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  heroMetaLabel: {
-    color: theme.colors.textDim,
-    fontSize: 11,
-    marginTop: 2,
-  },
-  heroRange: {
-    color: theme.colors.textDim,
-    fontSize: 11,
-    marginTop: 14,
-  },
+  heroMetaDivider: { width: 1, height: 28, backgroundColor: theme.colors.border, marginHorizontal: 12 },
+  heroMetaK: { color: theme.colors.brand, fontSize: 18, fontWeight: "700" },
+  heroMetaLabel: { color: theme.colors.textDim, fontSize: 11, marginTop: 2 },
+  heroRange: { color: theme.colors.textDim, fontSize: 11, marginTop: 14 },
   sectionHeader: {
     marginTop: 24,
     marginBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  sectionTitle: {
-    color: theme.colors.text,
-    fontSize: 16,
-    fontWeight: "700",
+  sectionTitle: { color: theme.colors.text, fontSize: 16, fontWeight: "700" },
+  linkBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
+  linkText: { color: theme.colors.brand, fontSize: 13, fontWeight: "600" },
+  budgetEmpty: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderStyle: "dashed",
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
+  budgetEmptyText: { flex: 1, color: theme.colors.textMuted, fontSize: 12, lineHeight: 18 },
+  budgetCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.md,
+    padding: 14,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  budgetHeader: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
+  budgetName: { color: theme.colors.text, fontSize: 14, fontWeight: "600" },
+  budgetMeta: { color: theme.colors.textDim, fontSize: 12, marginTop: 2 },
+  budgetPct: { fontSize: 15, fontWeight: "700" },
+  overText: { color: theme.colors.error, fontSize: 12, marginTop: 6 },
   catCard: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.md,
@@ -370,28 +401,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: 12,
   },
-  catName: {
-    color: theme.colors.text,
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  catMeta: {
-    color: theme.colors.textDim,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  catAmount: {
-    color: theme.colors.text,
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  barTrack: {
-    height: 4,
-    backgroundColor: theme.colors.surface2,
-    borderRadius: 2,
-    marginTop: 12,
-    overflow: "hidden",
-  },
+  catName: { color: theme.colors.text, fontSize: 15, fontWeight: "600" },
+  catMeta: { color: theme.colors.textDim, fontSize: 12, marginTop: 2 },
+  catAmount: { color: theme.colors.text, fontSize: 15, fontWeight: "700" },
+  barTrack: { height: 4, backgroundColor: theme.colors.surface2, borderRadius: 2, marginTop: 12, overflow: "hidden" },
   barFill: { height: 4, borderRadius: 2 },
   subRow: {
     flexDirection: "row",
@@ -420,18 +433,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: 12,
   },
-  avatarText: {
-    color: theme.colors.brand,
-    fontWeight: "700",
-    fontSize: 13,
-  },
+  avatarText: { color: theme.colors.brand, fontWeight: "700", fontSize: 13 },
   earnerName: { color: theme.colors.text, fontSize: 14, fontWeight: "600" },
   earnerMeta: { color: theme.colors.textDim, fontSize: 12, marginTop: 2 },
   earnerAmt: { color: theme.colors.text, fontSize: 15, fontWeight: "700" },
-  empty: {
-    alignItems: "center",
-    paddingVertical: 40,
-    gap: 12,
-  },
+  empty: { alignItems: "center", paddingVertical: 40, gap: 12 },
   emptyText: { color: theme.colors.textMuted, fontSize: 14 },
 });

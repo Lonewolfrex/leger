@@ -36,13 +36,20 @@ def base_url():
     return BASE_URL
 
 
-def _seed_household_user_session(db, email_prefix: str, seed_default_cats: bool = True):
+def _seed_household_user_session(db, email_prefix: str, seed_default_cats: bool = True,
+                                 days_since_plan_start: int = 0,
+                                 subscription_status: str = "trial",
+                                 subscription_expires_at=None,
+                                 is_founding_member: bool = False):
     """Seed a household + user + session. Returns dict with ids and token."""
     user_id = f"user_TEST_{uuid.uuid4().hex[:10]}"
     household_id = f"hh_TEST_{uuid.uuid4().hex[:8]}"
     invite_code = uuid.uuid4().hex[:8].upper()
     token = f"tok_TEST_{uuid.uuid4().hex}"
     email = f"TEST_{email_prefix}_{uuid.uuid4().hex[:6]}@example.com"
+
+    plan_started_at = (datetime.now(timezone.utc) - timedelta(days=days_since_plan_start)).isoformat()
+    sub_exp_iso = subscription_expires_at.isoformat() if isinstance(subscription_expires_at, datetime) else subscription_expires_at
 
     db.households.insert_one({
         "id": household_id,
@@ -58,6 +65,10 @@ def _seed_household_user_session(db, email_prefix: str, seed_default_cats: bool 
         "picture": None,
         "household_id": household_id,
         "created_at": datetime.now(timezone.utc).isoformat(),
+        "plan_started_at": plan_started_at,
+        "subscription_status": subscription_status,
+        "subscription_expires_at": sub_exp_iso,
+        "is_founding_member": is_founding_member,
     })
     db.user_sessions.insert_one({
         "session_token": token,
@@ -96,6 +107,9 @@ def _cleanup(db, household_ids, user_ids, tokens):
         db.households.delete_many({"id": {"$in": household_ids}})
         db.categories.delete_many({"household_id": {"$in": household_ids}})
         db.expenses.delete_many({"household_id": {"$in": household_ids}})
+        db.budgets.delete_many({"household_id": {"$in": household_ids}})
+        db.recurring_expenses.delete_many({"household_id": {"$in": household_ids}})
+        db.bill_reminders.delete_many({"household_id": {"$in": household_ids}})
     if user_ids:
         db.users.delete_many({"user_id": {"$in": user_ids}})
     if tokens:
@@ -114,6 +128,30 @@ def seed_b(db):
     data = _seed_household_user_session(db, "B")
     yield data
     _cleanup(db, [data["household_id"]], [data["user_id"]], [data["token"]])
+
+
+@pytest.fixture
+def seed_factory(db):
+    """Factory fixture to seed users with custom subscription phases. Auto-cleans."""
+    created = {"households": [], "users": [], "tokens": []}
+
+    def _make(prefix="X", days_since_plan_start=0, subscription_status="trial",
+              subscription_expires_at=None, is_founding_member=False, seed_default_cats=True):
+        d = _seed_household_user_session(
+            db, prefix,
+            seed_default_cats=seed_default_cats,
+            days_since_plan_start=days_since_plan_start,
+            subscription_status=subscription_status,
+            subscription_expires_at=subscription_expires_at,
+            is_founding_member=is_founding_member,
+        )
+        created["households"].append(d["household_id"])
+        created["users"].append(d["user_id"])
+        created["tokens"].append(d["token"])
+        return d
+
+    yield _make
+    _cleanup(db, created["households"], created["users"], created["tokens"])
 
 
 @pytest.fixture

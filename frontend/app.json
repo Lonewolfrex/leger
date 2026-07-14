@@ -47,6 +47,13 @@
           "photosPermission": "Pick receipt images from your photos",
           "cameraPermission": "Capture receipts to attach to expenses"
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#34D399"
+        }
       ]
     ],
     "experiments": {

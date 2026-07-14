@@ -15,19 +15,33 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 
 import { api, Household } from "@/src/api";
 import { theme } from "@/src/theme";
 import { showToast } from "@/src/components/Toast";
 import { useAuth } from "@/src/context/AuthContext";
+import { useSubscription } from "@/src/context/SubscriptionContext";
+import PremiumBanner from "@/src/components/PremiumBanner";
+import LockedFeatureSheet from "@/src/components/LockedFeatureSheet";
+
+type Feature = { key: string; title: string; icon: string; route: "/budgets" | "/recurring" | "/reminders" | "/export" };
+const PREMIUM_FEATURES: Feature[] = [
+  { key: "budgets", title: "Budget goals", icon: "flag", route: "/budgets" },
+  { key: "recurring", title: "Recurring expenses", icon: "repeat", route: "/recurring" },
+  { key: "reminders", title: "Bill reminders", icon: "notifications", route: "/reminders" },
+  { key: "export", title: "Export CSV", icon: "download", route: "/export" },
+];
 
 export default function Profile() {
   const { user, signOut } = useAuth();
+  const { status, isPremiumActive } = useSubscription();
+  const router = useRouter();
   const [hh, setHh] = useState<Household | null>(null);
   const [loading, setLoading] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
+  const [lockedName, setLockedName] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -41,11 +55,7 @@ export default function Profile() {
     }
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      void load();
-    }, [load])
-  );
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   const copyCode = async () => {
     if (!hh) return;
@@ -55,6 +65,14 @@ export default function Profile() {
     } catch {
       showToast(hh.invite_code, "info");
     }
+  };
+
+  const openFeature = (f: Feature) => {
+    if (!isPremiumActive) {
+      setLockedName(f.title);
+      return;
+    }
+    router.push(f.route);
   };
 
   return (
@@ -72,6 +90,49 @@ export default function Profile() {
           </View>
           <Text style={styles.userName}>{user?.name}</Text>
           <Text style={styles.userEmail}>{user?.email}</Text>
+          {status?.is_founding_member && (
+            <View style={styles.foundingBadge}>
+              <Ionicons name="star" size={12} color={theme.colors.warn} />
+              <Text style={styles.foundingBadgeText}>Founding member</Text>
+            </View>
+          )}
+        </View>
+
+        <PremiumBanner />
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Premium features</Text>
+          {PREMIUM_FEATURES.map((f) => (
+            <TouchableOpacity
+              key={f.key}
+              testID={`premium-feature-${f.key}`}
+              onPress={() => openFeature(f)}
+              activeOpacity={0.75}
+              style={styles.featureRow}
+            >
+              <View style={styles.featureIcon}>
+                <Ionicons name={f.icon as never} size={18} color={theme.colors.brand} />
+              </View>
+              <Text style={styles.featureTitle}>{f.title}</Text>
+              {!isPremiumActive ? (
+                <Ionicons name="lock-closed" size={14} color={theme.colors.warn} />
+              ) : (
+                <Ionicons name="chevron-forward" size={16} color={theme.colors.textDim} />
+              )}
+            </TouchableOpacity>
+          ))}
+          <TouchableOpacity
+            testID="see-plans-row"
+            onPress={() => router.push("/subscription")}
+            activeOpacity={0.75}
+            style={[styles.featureRow, { borderBottomWidth: 0 }]}
+          >
+            <View style={[styles.featureIcon, { backgroundColor: theme.colors.warn + "22" }]}>
+              <Ionicons name="sparkles" size={18} color={theme.colors.warn} />
+            </View>
+            <Text style={styles.featureTitle}>Plans &amp; subscription</Text>
+            <Ionicons name="chevron-forward" size={16} color={theme.colors.textDim} />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
@@ -83,7 +144,9 @@ export default function Profile() {
               <View style={styles.householdRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.hhName}>{hh.name}</Text>
-                  <Text style={styles.hhMeta}>{hh.members.length} members</Text>
+                  <Text style={styles.hhMeta}>
+                    {hh.members.length} {hh.members.length === 1 ? "member" : "members"}
+                  </Text>
                 </View>
                 <TouchableOpacity onPress={copyCode} style={styles.codeBtn} testID="copy-invite-code">
                   <Ionicons name="copy-outline" size={16} color={theme.colors.brand} />
@@ -143,6 +206,11 @@ export default function Profile() {
           setJoinOpen(false);
           void load();
         }}
+      />
+      <LockedFeatureSheet
+        visible={!!lockedName}
+        featureName={lockedName || ""}
+        onClose={() => setLockedName(null)}
       />
     </SafeAreaView>
   );
@@ -212,11 +280,7 @@ function JoinModal({
             style={[styles.saveBtn, saving && { opacity: 0.6 }]}
             activeOpacity={0.85}
           >
-            {saving ? (
-              <ActivityIndicator color={theme.colors.onBrand} />
-            ) : (
-              <Text style={styles.saveBtnText}>Join</Text>
-            )}
+            {saving ? <ActivityIndicator color={theme.colors.onBrand} /> : <Text style={styles.saveBtnText}>Join</Text>}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -232,12 +296,7 @@ function initials(name: string): string {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.colors.bg },
-  title: {
-    color: theme.colors.text,
-    fontSize: 26,
-    fontWeight: "800",
-    letterSpacing: -0.5,
-  },
+  title: { color: theme.colors.text, fontSize: 26, fontWeight: "800", letterSpacing: -0.5 },
   userCard: {
     alignItems: "center",
     padding: 20,
@@ -257,32 +316,46 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   avatarImg: { width: "100%", height: "100%" },
-  avatarBigText: {
-    color: theme.colors.brand,
-    fontSize: 28,
-    fontWeight: "700",
-  },
-  userName: {
-    color: theme.colors.text,
-    fontSize: 18,
-    fontWeight: "700",
-    marginTop: 12,
-  },
+  avatarBigText: { color: theme.colors.brand, fontSize: 28, fontWeight: "700" },
+  userName: { color: theme.colors.text, fontSize: 18, fontWeight: "700", marginTop: 12 },
   userEmail: { color: theme.colors.textMuted, fontSize: 13, marginTop: 4 },
+  foundingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: theme.radius.pill,
+    backgroundColor: theme.colors.warn + "22",
+  },
+  foundingBadgeText: { color: theme.colors.warn, fontSize: 11, fontWeight: "700" },
   section: {
-    marginTop: 24,
+    marginTop: 20,
     padding: 16,
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.lg,
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
-  sectionTitle: {
-    color: theme.colors.text,
-    fontSize: 15,
-    fontWeight: "700",
-    marginBottom: 12,
+  sectionTitle: { color: theme.colors.text, fontSize: 15, fontWeight: "700", marginBottom: 8 },
+  featureRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.divider,
   },
+  featureIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.brandDim,
+    marginRight: 12,
+  },
+  featureTitle: { flex: 1, color: theme.colors.text, fontSize: 14, fontWeight: "600" },
   householdRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -302,17 +375,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: theme.radius.pill,
   },
-  codeText: {
-    color: theme.colors.brand,
-    fontWeight: "700",
-    fontSize: 12,
-    letterSpacing: 1,
-  },
-  memberRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 8,
-  },
+  codeText: { color: theme.colors.brand, fontWeight: "700", fontSize: 12, letterSpacing: 1 },
+  memberRow: { flexDirection: "row", alignItems: "center", paddingVertical: 8 },
   memberAvatar: {
     width: 36,
     height: 36,
@@ -323,11 +387,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
     overflow: "hidden",
   },
-  memberAvatarText: {
-    color: theme.colors.brand,
-    fontWeight: "700",
-    fontSize: 13,
-  },
+  memberAvatarText: { color: theme.colors.brand, fontWeight: "700", fontSize: 13 },
   memberName: { color: theme.colors.text, fontSize: 14, fontWeight: "600" },
   memberEmail: { color: theme.colors.textDim, fontSize: 12, marginTop: 2 },
   youChip: {
@@ -336,11 +396,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: theme.radius.pill,
   },
-  youChipText: {
-    color: theme.colors.brand,
-    fontSize: 11,
-    fontWeight: "700",
-  },
+  youChipText: { color: theme.colors.brand, fontSize: 11, fontWeight: "700" },
   joinBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -353,11 +409,7 @@ const styles = StyleSheet.create({
     borderStyle: "dashed",
     justifyContent: "center",
   },
-  joinBtnText: {
-    color: theme.colors.brand,
-    fontWeight: "600",
-    fontSize: 13,
-  },
+  joinBtnText: { color: theme.colors.brand, fontWeight: "600", fontSize: 13 },
   signOut: {
     marginTop: 24,
     flexDirection: "row",
@@ -370,11 +422,7 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.error + "44",
   },
   signOutText: { color: theme.colors.error, fontWeight: "700", fontSize: 14 },
-
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.6)",
-  },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.6)" },
   sheetWrap: { flex: 1, justifyContent: "flex-end" },
   sheet: {
     backgroundColor: theme.colors.surface,
@@ -391,12 +439,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     marginBottom: 12,
   },
-  sheetTitle: {
-    color: theme.colors.text,
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 8,
-  },
+  sheetTitle: { color: theme.colors.text, fontSize: 18, fontWeight: "700", marginBottom: 8 },
   helpText: { color: theme.colors.textMuted, fontSize: 13, marginBottom: 12 },
   input: {
     backgroundColor: theme.colors.surface2,
@@ -418,9 +461,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  saveBtnText: {
-    color: theme.colors.onBrand,
-    fontWeight: "700",
-    fontSize: 15,
-  },
+  saveBtnText: { color: theme.colors.onBrand, fontWeight: "700", fontSize: 15 },
 });

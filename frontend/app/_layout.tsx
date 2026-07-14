@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AuthProvider } from "@/src/context/AuthContext";
+import { SubscriptionProvider } from "@/src/context/SubscriptionContext";
 import { ToastHost } from "@/src/components/Toast";
 import { theme } from "@/src/theme";
 
@@ -29,17 +30,19 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: theme.colors.bg }}>
       <SafeAreaProvider>
         <AuthProvider>
-          <StatusBar barStyle="light-content" backgroundColor={theme.colors.bg} />
-          <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: theme.colors.bg },
-                animation: "fade",
-              }}
-            />
-            <ToastHost />
-          </View>
+          <SubscriptionProvider>
+            <StatusBar barStyle="light-content" backgroundColor={theme.colors.bg} />
+            <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  contentStyle: { backgroundColor: theme.colors.bg },
+                  animation: "fade",
+                }}
+              />
+              <ToastHost />
+            </View>
+          </SubscriptionProvider>
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

@@ -1,0 +1,42 @@
+{
+  "summary": "Backend-only test pass for iteration 2 (premium features). Added 21 new pytest cases in /app/backend/tests/test_premium_features.py covering subscription snapshot (all 4 phases: free/premium_trial/expired/paid), founding-annual lock (activate within 60 days + 400 after 60 days), monthly/annual activate after founding window, premium gating (all 7 endpoints return 402 for free users; 200 for premium_trial), budgets CRUD with one-per-category upsert semantics + spent/percent/remaining enrichment (verified percent recalculates after posting a matching-category expense), recurring expenses lazy auto-run via GET /api/expenses (both monthly + weekly advancement of next_run_date), bill reminders CRUD, CSV export header + tricky-note quote/comma/newline escaping + date-range filter, dashboard.budgets populated for monthly and empty [] for weekly/yearly, extended /api/expenses filters (q case-insensitive, paid_by, min_amount, max_amount, combinations), and cross-household isolation for budgets/recurring/reminders. Full suite (iter1 + iter2) = 39/39 pass in 11.37s against the public preview URL.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_premium_features.py",
+    "/app/backend/tests/test_backend_api.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_iter2.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now 1200+ lines. Strongly recommend splitting into routers: auth.py, subscription.py, household.py, categories.py, expenses.py, dashboard.py, budgets.py, recurring.py, reminders.py, export.py — exceeds the 700-line guideline.",
+    "Deprecated @app.on_event startup/shutdown handlers still present — migrate to FastAPI lifespan.",
+    "POST /api/budgets returns 200 for both create and update — REST purists would use 201 for create and 200 for update, but response body indicates outcome, acceptable for MVP.",
+    "require_premium is called at the top of each premium endpoint but not on POST /budgets — wait, it IS called; verified. However, DELETE /budgets/{id} correctly gates via require_premium too — good.",
+    "_run_due_recurring is called from GET /expenses and GET /dashboard but NOT invoked when new users load pages other than those two. If the mobile app opens directly to say /reminders or /categories after being away for weeks, recurring won't auto-generate until user visits Expenses/Dashboard. Consider a lightweight cron / call on every authenticated GET, or persist last_run and check on /auth/me.",
+    "Recurring auto-run runs synchronously inside request handlers with up to 24 iterations per template — under load this could add latency. Consider background task or scheduled job.",
+    "No pagination or upper bound on /api/expenses beyond .to_list(length=2000). Should paginate.",
+    "CSV export loads up to 10000 expenses into memory — fine for MVP, but should stream for larger households.",
+    "Subscription activate accepts plan strings freely from client — in production must verify a payment token (Razorpay / Google Play). Code already acknowledges this via comment. Ensure this is not shipped as-is."
+  ],
+  "updated_files": [
+    "/app/backend/tests/conftest.py (extended _seed_household_user_session with days_since_plan_start/subscription_status/subscription_expires_at/is_founding_member; extended _cleanup to purge budgets/recurring_expenses/bill_reminders; added seed_factory fixture)",
+    "/app/backend/tests/test_premium_features.py (new — 21 tests)"
+  ],
+  "success_rate": {"backend": "100% (39/39 across both iterations; 21/21 new)", "frontend": "not tested (per request)"},
+  "seed_data_creation": "New seed_factory fixture in conftest.py that inserts TEST-prefixed households/users/user_sessions with configurable plan_started_at (via days_since_plan_start), subscription_status, subscription_expires_at, is_founding_member. All seeded rows and any test-created budgets/recurring/reminders/expenses/categories are deleted in teardown.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Add new premium/subscription tests to /app/backend/tests/test_premium_features.py. Use the seed_factory fixture to create users at any phase (e.g. seed_factory(days_since_plan_start=45) → premium_trial; days_since_plan_start=100 → expired; subscription_status='paid' + subscription_expires_at=future datetime → paid). Original seed_a/seed_b default to now → 'free' phase and are perfect for testing 402 gating and the free /api/expenses filters. All test data uses TEST_ prefix and is auto-cleaned. Base URL from EXPO_PUBLIC_BACKEND_URL in /app/frontend/.env; Mongo from /app/backend/.env. Frontend not tested — Emergent Google OAuth cannot be scripted.",
+  "rca_of_issue": "No issues found. All new premium endpoints, subscription phase computation, founding-member lock, lazy recurring auto-generation, budget aggregation, CSV escaping, extended filters, and cross-household isolation behave exactly as specified in the review request."
+}
