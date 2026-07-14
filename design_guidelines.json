@@ -1,0 +1,173 @@
+{
+  "app_name": "Household Expense Tracker",
+  "personality": "7 Dark-First Utility DARK",
+  "personality_one_liner": "A sharp, OLED-friendly command center for shared household finances that prioritizes glanceable metrics, immediate hierarchy, and fast data entry.",
+  "color": {
+    "surface": "#0C0D0F",
+    "onSurface": "#F3F4F6",
+    "surfaceSecondary": "#15171A",
+    "onSurfaceSecondary": "#9CA3AF",
+    "surfaceTertiary": "#1F2227",
+    "onSurfaceTertiary": "#6B7280",
+    "surfaceInverse": "#F3F4F6",
+    "onSurfaceInverse": "#0C0D0F",
+    "brand": "#34D399",
+    "brandPrimary": "#34D399",
+    "onBrandPrimary": "#022C1E",
+    "brandSecondary": "#10B981",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#064E3B",
+    "onBrandTertiary": "#6EE7B7",
+    "success": "#34D399",
+    "onSuccess": "#022C1E",
+    "warning": "#FBBF24",
+    "onWarning": "#451A03",
+    "error": "#F87171",
+    "onError": "#450A0A",
+    "info": "#A1A5AB",
+    "onInfo": "#111827",
+    "border": "#262A31",
+    "borderStrong": "#373D47",
+    "divider": "#1A1D21"
+  },
+  "typography": {
+    "displayFontFamily": "Rajdhani",
+    "textFontFamily": "DM Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Dense and tactical. Use dividers and tonal separation instead of heavy shadows. Ensure generous touch targets (min 44pt) despite dense data.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": 0,
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": true,
+    "do's": [
+      "Bottom tab bar background",
+      "Bottom-sheet headers and drag handles",
+      "Sticky header backgrounds over scrolling content"
+    ],
+    "dont's": [
+      "Cards in dense lists",
+      "Form inputs",
+      "Body content regions"
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Onboarding",
+      "purpose": "Introduce the app and handle Google Sign-in for the household.",
+      "states": {
+        "loading": "Spinner in the center of the screen",
+        "empty": "N/A",
+        "error": "Toast with retry option"
+      },
+      "layout": "Full-bleed background image with a vertical gradient scrim (transparent to surfaceInverse) at the bottom. The Google Sign-In button sits in the bottom 30% area, maintaining high contrast."
+    },
+    {
+      "name": "Dashboard",
+      "purpose": "Provide a high-level view of household expenses across time periods, broken down by category.",
+      "states": {
+        "loading": "Skeleton loaders for the hero card and transaction list",
+        "empty": "Illustration with 'No expenses logged yet' and a CTA to add one",
+        "error": "Error message with a 'Retry' button"
+      },
+      "layout": "Sticky top header with Period Selector chips (Daily/Weekly/Monthly/etc). Below that, a glowing Hero Card showing Total Expenses in INR (using Rajdhani font). Following is a grouped list (surfaceSecondary) showing category-wise expense breakdown with earner tags. A floating action button (FAB) for adding expenses is positioned at the bottom right."
+    },
+    {
+      "name": "Categories",
+      "purpose": "Manage expense categories and subcategories (CRUD).",
+      "states": {
+        "loading": "Skeleton list items",
+        "empty": "Message 'No custom categories' with a 'Create Category' button",
+        "error": "Error message with 'Retry' button"
+      },
+      "layout": "A structured list view. Each category item shows a tinted icon container (brandTertiary rounded square). Tapping opens a bottom sheet to edit or add subcategories. Sticky 'Add Category' CTA at the bottom."
+    },
+    {
+      "name": "AddExpenseSheet",
+      "purpose": "Fast data entry for logging a new household expense with receipt attachment.",
+      "states": {
+        "loading": "Saving spinner overlay",
+        "empty": "N/A",
+        "error": "Inline validation errors for missing fields"
+      },
+      "layout": "A bottom sheet with a large numeric input for the INR amount at the top. Below are segmented controls/dropdowns for Category, Subcategory, and Paid-By (Earner selection). Includes a section for 'Attach Receipt' (camera/gallery icons) which shows a thumbnail preview when attached. Sticky 'Save Expense' button at the bottom."
+    },
+    {
+      "name": "ProfileSettings",
+      "purpose": "Manage household members (earners) and app preferences.",
+      "states": {
+        "loading": "Skeleton for user details",
+        "empty": "N/A",
+        "error": "Error message to reload profile"
+      },
+      "layout": "A top hero section with the user's avatar. Below is a list of 'Household Members' showing avatars and roles. Includes buttons to 'Invite Member' and 'Log Out'. Uses divider-separated rows (surfaceSecondary) for settings options."
+    }
+  ],
+  "images": {
+    "onboarding_background": {
+      "url": "https://images.unsplash.com/photo-1655841439659-0afc60676b70?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzB8MHwxfHNlYXJjaHwyfHxhYnN0cmFjdCUyMGRhcmslMjBvYnNpZGlhbiUyMGVtZXJhbGQlMjBtb2Rlcm4lMjBiYWNrZ3JvdW5kfGVufDB8fHx8MTc4NDA0NTYwN3ww&ixlib=rb-4.1.0&q=85",
+      "alt": "Dark abstract wavy obsidian and emerald background"
+    },
+    "google_logo": {
+      "url": "https://images.unsplash.com/photo-1662947190722-5d272f82a526?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHwxfHxnb29nbGUlMjBsb2dvJTIwcG5nfGVufDB8fHx8MTc4Mzk3MzI2M3ww&ixlib=rb-4.1.0&q=85",
+      "alt": "Google logo on dark background"
+    },
+    "default_avatar": {
+      "url": "https://images.unsplash.com/photo-1740252117013-4fb21771e7ca?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHwyfHxwcm9maWxlJTIwcGljdHVyZSUyMGF2YXRhciUyMG1vZGVybnxlbnwwfHx8fDE3ODQwNDU2MDd8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Modern default avatar profile"
+    }
+  },
+  "haptics": {
+    "AddExpenseSheet.open": "impactLight",
+    "AddExpenseSheet.save": "notificationSuccess",
+    "Dashboard.periodSelect": "selection",
+    "Categories.delete": "notificationWarning",
+    "General.buttonPress": "impactLight"
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the Dark-First Utility (7) guidelines: use dividers and spacing instead of drop shadows. Keep the UI dense and highly scannable.",
+    "No blue or purple colors are permitted anywhere in the UI. Use the provided mint/emerald (brand) and zinc/gray (info) tones.",
+    "Implement the Dashboard with a sticky top period selector. Use the Rajdhani display font for all total numbers and large metrics to enhance the dashboard utility feel.",
+    "Add Expense must be a bottom sheet or a dedicated screen with a sticky bottom 'Save' CTA. Ensure the keyboard avoiding view is properly implemented so the button is always reachable.",
+    "Use real avatars for earners where possible, fallback to initials on a brandTertiary background.",
+    "Any image used as a background (e.g., Onboarding) MUST have a vertical gradient scrim (transparent to surfaceInverse or surface) to guarantee text contrast. Text should be placed in the darkest area of the scrim.",
+    "Include empty states for Dashboard and Categories using styled illustrations or icons, ensuring they fill the available space (flex: 1).",
+    "Ensure the INR symbol (₹) is correctly used alongside numbers.",
+    "Include 'react-native-image-picker' or 'expo-image-picker' implementation for the receipt attachment feature, handling both camera and gallery permissions.",
+    "Mock the Google Sign-in flow and CRUD backend operations if a real backend is not provided."
+  ]
+}
