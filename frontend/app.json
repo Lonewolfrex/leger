@@ -6,11 +6,15 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "frontend",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.receipttrackerapp.hu5nx3"
+      "bundleIdentifier": "com.emergent.receipttrackerapp.hu5nx3",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Capture receipts to attach to expenses",
+        "NSPhotoLibraryUsageDescription": "Pick receipt images from your photos"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -18,7 +22,8 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.emergent.receipttrackerapp.hu5nx3"
+      "package": "com.emergent.receipttrackerapp.hu5nx3",
+      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE"]
     },
     "web": {
       "bundler": "metro",
@@ -34,6 +39,13 @@
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#000000"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Pick receipt images from your photos",
+          "cameraPermission": "Capture receipts to attach to expenses"
         }
       ]
     ],
